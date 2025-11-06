@@ -6,6 +6,7 @@ import cors from "cors";
 import { randomUUID } from "node:crypto";
 import jwt, { JwtHeader, SigningKeyCallback } from "jsonwebtoken";
 import jwksClient from "jwks-rsa";
+import * as oidc_client from "openid-client";
 import {
   mcpAuthMetadataRouter,
   getOAuthProtectedResourceMetadataUrl,
@@ -32,6 +33,8 @@ function getConfigData() {
 const MCP_SERVER_BASE_URL = configData.MCP_SERVER_BASE_URL;
 const AUTHZ_SERVER_BASE_URL = configData.AUTHZ_SERVER_BASE_URL;
 const SCOPES_SUPPORTED = configData.SCOPES_SUPPORTED;
+const MCP_SERVER_CLIENT_ID = configData.MCP_SERVER_CLIENT_ID;
+const MCP_SERVER_CLIENT_SECRET = configData.MCP_SERVER_CLIENT_SECRET;
 export const BACKEND_API_BASE = configData.BACKEND_API_BASE;
 export const BACKEND_AUTH_TOKEN = () => getConfigData().BACKEND_AUTH_TOKEN;
 export const USER_AGENT = "OFBiz-MCP-server";
@@ -87,6 +90,7 @@ async function validateAccessToken(token: string): Promise<{
   scopes?: string[];
   userId?: string;
   audience?: string;
+  token?: string;
 }> {
   try {
     // Using JWT tokens, validate locally    
@@ -111,7 +115,8 @@ async function validateAccessToken(token: string): Promise<{
       clientId: result.client_id,
       scopes: result.scope?.split(' '),
       userId: result.sub,
-      audience: result.aud
+      audience: result.aud,
+      token: token
     };
   } catch (error) {
     console.error('Token validation error:', error);
@@ -172,6 +177,81 @@ const authenticateRequest = async (req: express.Request, res: express.Response, 
     });
   }
 };
+
+//
+// MCP server acting as a OAuth client in order to perform token exchanges
+//
+
+/**
+ * Get or create a cached OpenID Configuration instance.
+ */
+let cachedAuthServerConfig: oidc_client.Configuration | null = null;
+async function getOAuthServerConfiguration(): Promise<oidc_client.Configuration> {
+  if (cachedAuthServerConfig) return cachedAuthServerConfig;
+
+  try {
+    cachedAuthServerConfig = await oidc_client.discovery(
+      new URL(AUTHZ_SERVER_BASE_URL),
+      MCP_SERVER_CLIENT_ID,
+      MCP_SERVER_CLIENT_SECRET,
+      undefined,
+      {execute: [oidc_client.allowInsecureRequests]}
+    );
+    return cachedAuthServerConfig;
+  } catch (err: any) {
+    console.error("Failed to initialize OpenID client:", err.message || err);
+    throw new Error("Failed to initialize OAuth client for token exchange");
+  }
+}
+/**
+ * Performs an OAuth 2.0 Token Exchange (RFC 8693).
+ *
+ * @param subjectToken - The access token received from the client or another API
+ * @returns The new access token to use for calling a downstream API
+ */
+export async function performTokenExchange(subjectToken: string): Promise<string | null> {
+  try {
+    // Discover the Authorization Server's configuration
+    const authServerConfig = await getOAuthServerConfiguration();
+
+    // Execute the token exchange request
+    const response = await oidc_client.genericGrantRequest(
+      authServerConfig,
+      "urn:ietf:params:oauth:grant-type:token-exchange",
+      {
+      subject_token: subjectToken,
+      subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
+      scope: "ofbiz:use-api",
+      resource: BACKEND_API_BASE,
+      audience: BACKEND_API_BASE
+    });
+
+    // Verify the response contains the expected access token
+    if (!response?.access_token) {
+      console.error("Token exchange succeeded but no access_token was returned:", response);
+      return null;
+    }
+    return response.access_token;
+    
+  } catch (err: unknown) {
+    // Handle specific openid-client errors
+    /*
+    if (err instanceof oidc_client.ClientError) {
+      console.error("OAuth/OIDC error:", err.error, err.error_description);
+      if (err.response) {
+        console.error("Response details:", await err.response.text());
+      }
+    } else if (err instanceof TypeError) {
+      console.error("Network or configuration error:", err.message);
+    } else {
+      console.error("Unexpected error:", err);
+    }
+    */
+    console.error("Error during token exchange:", err);
+    return null;
+  }
+}
 
 const handleMcpRequest = async (req: express.Request, res: express.Response) => {
   // Check for existing session ID

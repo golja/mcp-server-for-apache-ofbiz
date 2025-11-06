@@ -7,5 +7,7 @@
   "AUTHZ_SERVER_BASE_URL": "",
   "SCOPES_SUPPORTED": [
     "mcp:call-tools"
-  ]
+  ],
+  "MCP_SERVER_CLIENT_ID": "",
+  "MCP_SERVER_CLIENT_SECRET": ""
 }

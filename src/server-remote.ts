@@ -233,7 +233,7 @@ export async function performTokenExchange(subjectToken: string): Promise<string
       return null;
     }
     return response.access_token;
-    
+
   } catch (err: unknown) {
     // Handle specific openid-client errors
     /*
@@ -258,16 +258,16 @@ const handleMcpRequest = async (req: express.Request, res: express.Response) => 
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
   let transport: StreamableHTTPServerTransport;
 
-  if (sessionId && transports[sessionId]) {
+  if (sessionId && getTransport(sessionId)) {
     // Reuse existing transport
-    transport = transports[sessionId];
+    transport = getTransport(sessionId);
   } else if (!sessionId && isInitializeRequest(req.body)) {
     // New initialization request
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sessionId) => {
         // Store the transport by session ID
-        transports[sessionId] = transport;
+        addSession(sessionId, transport);
       },
       // FIXME:
       // DNS rebinding protection is disabled by default for backwards compatibility. If you are running this server
@@ -279,7 +279,7 @@ const handleMcpRequest = async (req: express.Request, res: express.Response) => 
     // Clean up transport when closed
     transport.onclose = () => {
       if (transport.sessionId) {
-        delete transports[transport.sessionId];
+        deleteSession(transport.sessionId);
       }
     };
     const server = new McpServer({
@@ -333,17 +333,33 @@ const handleMcpRequest = async (req: express.Request, res: express.Response) => 
 // Reusable handler for GET and DELETE requests
 const handleSessionRequest = async (req: express.Request, res: express.Response) => {
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
-  if (!sessionId || !transports[sessionId]) {
+  if (!sessionId || !getTransport(sessionId)) {
     res.status(400).send('Invalid or missing session ID');
     return;
   }
   
-  const transport = transports[sessionId];
+  const transport = getTransport(sessionId);
   await transport.handleRequest(req, res);
 };
 
+
 // Map to store transports by session ID
-const transports: { [sessionId: string]: StreamableHTTPServerTransport } = {};
+const sessions: { [sessionId: string]: { transport: StreamableHTTPServerTransport; downstreamToken: string | undefined } } = {};
+// Helper functions to access the transports map
+export function getTransport(sessionId: string): StreamableHTTPServerTransport {
+    const entry = sessions[sessionId];
+    return entry?.transport;
+}
+
+export function addSession(sessionId: string, transport: StreamableHTTPServerTransport): void {
+    sessions[sessionId] = {transport, downstreamToken: undefined};
+}
+
+export function deleteSession(sessionId?: string): void {
+    if (!sessionId) return;
+    delete sessions[sessionId];
+}
+
 // Precompute resource metadata URL
 const resourceMetadataUrl = (enableAuth ? getOAuthProtectedResourceMetadataUrl(new URL(MCP_SERVER_BASE_URL)) : "");
 

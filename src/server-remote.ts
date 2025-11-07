@@ -19,15 +19,15 @@ import { loadTools } from "./toolLoader.js";
 
 // Load configuration
 const configPath = path.resolve(
-    path.dirname(new URL(import.meta.url).pathname),
-    "../config/config.json"
+  path.dirname(new URL(import.meta.url).pathname),
+  "../config/config.json"
 );
 
 const configData = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
 // Always read the latest config from the file system
 function getConfigData() {
-    return JSON.parse(fs.readFileSync(configPath, "utf-8"));
+  return JSON.parse(fs.readFileSync(configPath, "utf-8"));
 }
 
 const MCP_SERVER_BASE_URL = configData.MCP_SERVER_BASE_URL;
@@ -101,7 +101,7 @@ async function validateAccessToken(token: string): Promise<{
         getKey,
         {
           algorithms: ["RS256"], // FIXME: adjust based on token's algorithm
-          audience: MCP_SERVER_BASE_URL, 
+          audience: MCP_SERVER_BASE_URL,
           issuer: AUTHZ_SERVER_BASE_URL,
         },
         (err, decoded) => {
@@ -119,7 +119,7 @@ async function validateAccessToken(token: string): Promise<{
       audience: result.aud,
       subjectToken: token,
       downstreamToken: null
-      };
+    };
   } catch (error) {
     console.error('Token validation error:', error);
     return { valid: false };
@@ -129,7 +129,7 @@ async function validateAccessToken(token: string): Promise<{
 // Middleware to check for valid access token
 const authenticateRequest = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   const authHeader = req.headers.authorization;
-  
+
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     // Return 401 with WWW-Authenticate header pointing to metadata
     res.status(401)
@@ -144,13 +144,13 @@ const authenticateRequest = async (req: express.Request, res: express.Response, 
       });
     return;
   }
-  
+
   const token = authHeader.substring(7);
-  
+
   try {
     // Validate the access token
     const validationResult = await validateAccessToken(token);
-    
+
     if (!validationResult.valid) {
       res.status(401)
         .set('WWW-Authenticate', `Bearer realm="mcp", error="invalid_token", as_uri="${resourceMetadataUrl}"`)
@@ -197,7 +197,7 @@ async function getOAuthServerConfiguration(): Promise<oidc_client.Configuration>
       MCP_SERVER_CLIENT_ID,
       MCP_SERVER_CLIENT_SECRET,
       undefined,
-      {execute: [oidc_client.allowInsecureRequests]}
+      { execute: [oidc_client.allowInsecureRequests] }
     );
     return cachedAuthServerConfig;
   } catch (err: any) {
@@ -221,13 +221,13 @@ async function performTokenExchange(subjectToken: string): Promise<string | null
       authServerConfig,
       "urn:ietf:params:oauth:grant-type:token-exchange",
       {
-      subject_token: subjectToken,
-      subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
-      requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
-      scope: "ofbiz:use-api",
-      resource: BACKEND_API_BASE,
-      audience: BACKEND_API_BASE
-    });
+        subject_token: subjectToken,
+        subject_token_type: "urn:ietf:params:oauth:token-type:access_token",
+        requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
+        scope: "ofbiz:use-api",
+        resource: BACKEND_API_BASE,
+        audience: BACKEND_API_BASE
+      });
 
     // Verify the response contains the expected access token
     if (!response?.access_token) {
@@ -291,26 +291,26 @@ const handleMcpRequest = async (req: express.Request, res: express.Response) => 
 
     // Load and register tools from external files
     async function registerTools() {
-        try {
-            const tools = await loadTools();
-            
-            for (const tool of tools) {
-                server.registerTool(
-                    tool.name,
-                    tool.metadata,
-                    tool.handler
-                );
-                console.error(`Registered tool: ${tool.name}`);
-            }
-        } catch (error) {
-            console.error("Error loading tools:", error);
-            throw error;
+      try {
+        const tools = await loadTools();
+
+        for (const tool of tools) {
+          server.registerTool(
+            tool.name,
+            tool.metadata,
+            tool.handler
+          );
+          console.error(`Registered tool: ${tool.name}`);
         }
+      } catch (error) {
+        console.error("Error loading tools:", error);
+        throw error;
+      }
     }
 
     // Set up server resources, tools, and prompts
     await registerTools();
-    
+
     // Connect to the MCP server
     await server.connect(transport);
   } else {
@@ -326,31 +326,31 @@ const handleMcpRequest = async (req: express.Request, res: express.Response) => 
     return;
   }
 
-    // Prepare downstream token
-    // Get or perform token exchange if authentication is enabled
-    if (!(req as any).auth) {
-      (req as any).auth = { valid: false, downstreamToken: null };
-    }
-    if (sessionId) {
-      let downstreamToken = getDownstreamToken(sessionId);
+  // Prepare downstream token
+  // Get or perform token exchange if authentication is enabled
+  if (!(req as any).auth) {
+    (req as any).auth = { valid: false, downstreamToken: null };
+  }
+  if (sessionId) {
+    let downstreamToken = getDownstreamToken(sessionId);
+    if (!downstreamToken) {
+      if ((req as any).auth.valid) {
+        downstreamToken = await performTokenExchange((req as any).auth.subjectToken);
+        console.log("New downstream access token: " + downstreamToken);
+      }
       if (!downstreamToken) {
-        if ((req as any).auth.valid) {
-          downstreamToken = await performTokenExchange((req as any).auth.subjectToken);
-          console.log("New downstream access token: " + downstreamToken);
-        }
-        if (!downstreamToken) {
-          // No downstream token obtained from token exchange, fallback to static token
-          downstreamToken = BACKEND_AUTH_TOKEN();
-        }
-        // FIXME: remove
+        // No downstream token obtained from token exchange, fallback to static token
         downstreamToken = BACKEND_AUTH_TOKEN();
-        if (downstreamToken) {
-          setDownstreamToken(sessionId, downstreamToken);
-        }
       }
+      // FIXME: remove
+      downstreamToken = BACKEND_AUTH_TOKEN();
       if (downstreamToken) {
-        (req as any).auth.downstreamToken = downstreamToken;
+        setDownstreamToken(sessionId, downstreamToken);
       }
+    }
+    if (downstreamToken) {
+      (req as any).auth.downstreamToken = downstreamToken;
+    }
   }
 
   // Handle the request
@@ -366,7 +366,7 @@ const handleSessionRequest = async (req: express.Request, res: express.Response)
     res.status(400).send('Invalid or missing session ID');
     return;
   }
-  
+
   const transport = getTransport(sessionId);
   await transport.handleRequest(req, res);
 };
@@ -376,27 +376,27 @@ const sessions: { [sessionId: string]: { transport: StreamableHTTPServerTranspor
 
 // Helper functions to access the transports map
 function getTransport(sessionId: string): StreamableHTTPServerTransport {
-    const entry = sessions[sessionId];
-    return entry?.transport;
+  const entry = sessions[sessionId];
+  return entry?.transport;
 }
 
 function getDownstreamToken(sessionId: string): string | null {
-    const entry = sessions[sessionId];
-    return entry?.downstreamToken;
+  const entry = sessions[sessionId];
+  return entry?.downstreamToken;
 }
 
 function addSession(sessionId: string, transport: StreamableHTTPServerTransport): void {
-    sessions[sessionId] = {transport, downstreamToken: null};
+  sessions[sessionId] = { transport, downstreamToken: null };
 }
 
 function deleteSession(sessionId?: string): void {
-    if (!sessionId) return;
-    delete sessions[sessionId];
+  if (!sessionId) return;
+  delete sessions[sessionId];
 }
 
 function setDownstreamToken(sessionId: string, downstreamToken: string): void {
-    const entry = sessions[sessionId];
-    entry.downstreamToken = downstreamToken;
+  const entry = sessions[sessionId];
+  entry.downstreamToken = downstreamToken;
 }
 
 // Precompute resource metadata URL
@@ -410,10 +410,10 @@ const app = express();
 app.use(express.json());
 // Allow CORS all domains, expose the Mcp-Session-Id header
 app.use(
-    cors({
-        origin: '*', // Allow all origins
-        exposedHeaders: ['Mcp-Session-Id']
-    })
+  cors({
+    origin: '*', // Allow all origins
+    exposedHeaders: ['Mcp-Session-Id']
+  })
 );
 
 if (enableAuth) {
@@ -446,5 +446,5 @@ app.get('/mcp', handleSessionRequest);
 app.delete('/mcp', handleSessionRequest);
 
 app.listen(SERVER_PORT, () => {
-    console.log(`MCP stateful Streamable HTTP Server listening on port ${SERVER_PORT} with ${enableAuth ? 'authentication' : 'no authentication'}.`);
+  console.log(`MCP stateful Streamable HTTP Server listening on port ${SERVER_PORT} with ${enableAuth ? 'authentication' : 'no authentication'}.`);
 });

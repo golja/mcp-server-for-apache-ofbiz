@@ -90,6 +90,7 @@ async function validateAccessToken(token: string): Promise<{
   scopes?: string[];
   userId?: string;
   audience?: string;
+  subjectToken?: string;
   downstreamToken?: string | null;
 }> {
   try {
@@ -116,6 +117,7 @@ async function validateAccessToken(token: string): Promise<{
       scopes: result.scope?.split(' '),
       userId: result.sub,
       audience: result.aud,
+      subjectToken: token,
       downstreamToken: null
       };
   } catch (error) {
@@ -161,14 +163,6 @@ const authenticateRequest = async (req: express.Request, res: express.Response, 
           id: null
         });
       return;
-    }
-    // Token is valid, get downstream token
-    let downstreamToken = getDownstreamToken(req.headers['mcp-session-id'] as string);
-    if (!downstreamToken) {
-      downstreamToken = await performTokenExchange(token);
-    }
-    if (downstreamToken) {
-      validationResult.downstreamToken = downstreamToken;
     }
 
     // Attach user/token info to request for use in handlers
@@ -217,7 +211,7 @@ async function getOAuthServerConfiguration(): Promise<oidc_client.Configuration>
  * @param subjectToken - The access token received from the client or another API
  * @returns The new access token to use for calling a downstream API
  */
-export async function performTokenExchange(subjectToken: string): Promise<string | null> {
+async function performTokenExchange(subjectToken: string): Promise<string | null> {
   try {
     // Discover the Authorization Server's configuration
     const authServerConfig = await getOAuthServerConfiguration();
@@ -332,6 +326,33 @@ const handleMcpRequest = async (req: express.Request, res: express.Response) => 
     return;
   }
 
+    // Prepare downstream token
+    // Get or perform token exchange if authentication is enabled
+    if (!(req as any).auth) {
+      (req as any).auth = { valid: false, downstreamToken: null };
+    }
+    if (sessionId) {
+      let downstreamToken = getDownstreamToken(sessionId);
+      if (!downstreamToken) {
+        if ((req as any).auth.valid) {
+          downstreamToken = await performTokenExchange((req as any).auth.subjectToken);
+          console.log("New downstream access token: " + downstreamToken);
+        }
+        if (!downstreamToken) {
+          // No downstream token obtained from token exchange, fallback to static token
+          downstreamToken = BACKEND_AUTH_TOKEN();
+        }
+        // FIXME: remove
+        downstreamToken = BACKEND_AUTH_TOKEN();
+        if (downstreamToken) {
+          setDownstreamToken(sessionId, downstreamToken);
+        }
+      }
+      if (downstreamToken) {
+        (req as any).auth.downstreamToken = downstreamToken;
+      }
+  }
+
   // Handle the request
   console.log(`Processing request for session ${sessionId}`);
   await transport.handleRequest(req, res, req.body);
@@ -349,7 +370,6 @@ const handleSessionRequest = async (req: express.Request, res: express.Response)
   const transport = getTransport(sessionId);
   await transport.handleRequest(req, res);
 };
-
 
 // Map to store transports by session ID
 const sessions: { [sessionId: string]: { transport: StreamableHTTPServerTransport; downstreamToken: string | null } } = {};
@@ -372,6 +392,11 @@ function addSession(sessionId: string, transport: StreamableHTTPServerTransport)
 function deleteSession(sessionId?: string): void {
     if (!sessionId) return;
     delete sessions[sessionId];
+}
+
+function setDownstreamToken(sessionId: string, downstreamToken: string): void {
+    const entry = sessions[sessionId];
+    entry.downstreamToken = downstreamToken;
 }
 
 // Precompute resource metadata URL

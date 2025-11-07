@@ -8,7 +8,7 @@ export interface ToolDefinition {
         description: string,
         inputSchema: Record<string, any>
     };
-    handler: (params: any) => Promise<any>;
+    handler: (params: any, request: any) => Promise<any>;
 }
 
 export async function loadTools(): Promise<ToolDefinition[]> {

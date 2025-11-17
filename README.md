@@ -46,10 +46,11 @@ Each tool is defined and implemented in its own file. For example, the sample to
 New tools can be published by simply including their definition files in the `tools` folder.
 
 The remote server:
-- is compliant with the latest MCP specifications
+- is compliant with the latest MCP specifications (2025-06-18)
 - supports authorization according to the MCP recommendations (OAuth Authorization Code Flow with support for Metadata discovery, Dynamic Client Registration, etc...)
 - supports the token exchange OAuth flow in order to obtain a valid token for the backend system 
 - performs token validation with configurable scopes and audience verification
+- supports TLS connections (https)
 - provides rate limiting features to protect the MCP server and the backend server from denial of service attacks
 - allows CORS restrictions
 
@@ -61,25 +62,30 @@ Server configuration is managed via `config/config.json`, which defines:
 
 - **`MCP_SERVER_BASE_URL`** — the base URL of the MCP server (Protected Resource Server in OAuth)
 - **`SERVER_PORT`** — the port on which the MCP server listens for client connections (required only for the remote server)  
+- **`TLS_CERT_PATH`** — path to the file containing the certificate for TLS 
+- **`TLS_KEY_PATH`** — path to the file containing the private key for TLS  
+- **`TLS_KEY_PASSPHRASE`** — (optional) passphrase for the **`TLS_KEY_PATH`** file 
 - **`MCP_SERVER_CORS_ORIGINS`** — CORS origin allowed 
+- **`RATE_LIMIT_WINDOW_MS`** — time window in ms for the requests rate limiting feature
+- **`RATE_LIMIT_MAX_REQUESTS`** — max number of requests allowed in the time window 
 - **`AUTHZ_SERVER_BASE_URL`** — the base URL of the Authorization (Authz) server (OAuth)
+- **`SCOPES_SUPPORTED`** — the scopes that the MCP client can request  
 - **`BACKEND_API_BASE`** — the base URL for backend REST API calls  
 - **`MCP_SERVER_CLIENT_ID`** — Client ID required for token exchange, as registered in Authz server  
 - **`MCP_SERVER_CLIENT_SECRET`** — the secret associated with **`MCP_SERVER_CLIENT_ID`** 
-- **`SCOPES_SUPPORTED`** — the scopes that the MCP client can request  
 - **`BACKEND_API_AUDIENCE`** — the OAuth audience paramenter for the backend system 
-- **`BACKEND_API_RESOURCE`** — the OAuth resource parameter for the backend system    
+- **`BACKEND_API_RESOURCE`** — the OAuth resource parameter for the backend system
+- **`TOKEN_EXCHANGE_SCOPE`** — the list of scopes requested in the token exchange
 - **`BACKEND_API_AUTH`** - the URL to get the OFBiz APIs access token used if token exchange is not enabled
 - **`BACKEND_AUTH_TOKEN`** — the token to authorize backend API calls used if token exchange is not enabled  
-- **`RATE_LIMIT_WINDOW_MS`** — time window in ms for the requests rate limiting feature
-- **`RATE_LIMIT_MAX_REQUESTS`** — max number of requests allowed in the time window 
 
+If both **`TLS_CERT_PATH`** and **`TLS_KEY_PATH`** are configured, the MCP server will operate over HTTPS; otherwise, it falls back to HTTP.
 
 If either **`MCP_SERVER_BASE_URL`** or **`AUTHZ_SERVER_BASE_URL`** are not set, authorization is disabled and the MCP server is publicly accessible.
 
 If authorization is enabled, but either **`MCP_SERVER_CLIENT_ID`** or **`MCP_SERVER_CLIENT_SECRET`** are not set, token exchange is disabled.
 
-If token exchange is not enabled, the access token for the OFBiz API can be easily generated and set up by running the script: 
+If token exchange is not enabled, the access token for the OFBiz API can be set **`BACKEND_AUTH_TOKEN`** and can be easily generated and set by running the script: 
 
 `update_token.sh <user> <password>` 
 

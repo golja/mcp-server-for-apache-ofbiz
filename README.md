@@ -98,7 +98,7 @@ mcp-server-for-apache-ofbiz/
 ├── config/
 │   └── config.json               # Server configuration (backend API base, auth token, etc.)
 ├── src/
-│   ├── server.ts          # MCP server (Streamable HTTP transport)
+│   ├── server.ts                 # MCP server (Streamable HTTP transport)
 │   ├── toolLoader.ts             # Loader of tool definitions from "tools/"
 │   └── tools/
 │       └── findProductById.ts    # Example tool calling an Apache OFBiz REST endpoint

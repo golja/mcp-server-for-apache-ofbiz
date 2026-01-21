@@ -72,7 +72,7 @@ Server configuration is managed via `config/config.json`, which defines:
 - **`SCOPES_SUPPORTED`** — the scopes that the MCP client can request
 - **`BACKEND_API_BASE`** — the base URL for backend REST API calls
 - **`BACKEND_USER_AGENT`** — the user agent set in the header of downstream API calls
-- **`MCP_SERVER_CLIENT_ID`** — Client ID required for token exchange, as registered in Authz server
+- **`MCP_SERVER_CLIENT_ID`** — Client ID, as registered in Authz server. It is used by the MCP server to validate the "aud" claim of tokens received by clients. If not set or empty, no "aud" claim validation is performed. This parameter is also required for token exchange
 - **`MCP_SERVER_CLIENT_SECRET`** — the secret associated with **`MCP_SERVER_CLIENT_ID`**
 - **`BACKEND_API_AUDIENCE`** — the OAuth audience paramenter for the backend system
 - **`BACKEND_API_RESOURCE`** — the OAuth resource parameter for the backend system

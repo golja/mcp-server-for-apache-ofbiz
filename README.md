@@ -22,7 +22,7 @@ Apache OFBiz® is a trademark of the [Apache Software Foundation](https://www.ap
 1. [Project Structure](#project-structure)
 1. [Build the Project](#build-the-project)
 1. [Test the Remote MCP Server](#test-the-mcp-server)
-1. [Inspect the MCP servers](#inspect-the-mcp-server)
+1. [Inspect the MCP server](#inspect-the-mcp-server)
 1. [Containerization with Docker](#containerization-with-docker)
 
 ---

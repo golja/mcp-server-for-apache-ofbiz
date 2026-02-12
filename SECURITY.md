@@ -12,7 +12,7 @@ Security fixes are applied to the `main` branch. Users are encouraged to run the
 
 If you discover a security vulnerability, please **do not open a public issue**.
 
-Instead, report it privately by opening a GitHub Security Advisory.
+Instead, report it privately by opening a [GitHub Security Advisory](https://github.com/jacopoc/mcp-server-for-apache-ofbiz/security/advisories/new).
 
 Please include:
 
